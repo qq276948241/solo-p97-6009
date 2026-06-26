@@ -44,10 +44,18 @@ class InputHandler:
                 destroyed = self.target_word
                 self.reset()
                 return ("destroyed", destroyed)
+            elif result == "destroyed_boss":
+                destroyed = self.target_word
+                self.reset()
+                return ("destroyed_boss", destroyed)
             elif result == "hit":
                 player.add_keystroke(True)
                 self.current_input += ch
                 return "hit"
+            elif result == "miss_boss":
+                player.add_keystroke(False)
+                self.current_input = ""
+                return "miss_boss"
             else:
                 player.add_keystroke(False)
                 return "miss"

@@ -7,13 +7,14 @@ from config import (
     FONT_NAME, FONT_SIZE_LARGE, FONT_SIZE_MEDIUM, FONT_SIZE_SMALL, FONT_SIZE_WORD,
 )
 from game_state import GameStateType, GameStateManager
-from word_gen import WordSpawner
+from word_gen import WordSpawner, BossSpawner, BOSS_BASE_SCORE, BOSS_MISS_LIVES
 from player import PlayerState
 from powerup import PowerUpSpawner, PowerUpType
 from particles import ParticleSystem
 from input_handler import InputHandler
 from scoreboard import load_scores, save_score
 from audio import AudioManager
+from falling_word import BossWord
 import renderer
 
 
@@ -35,11 +36,13 @@ class Game:
         self.state_mgr = GameStateManager()
         self.player = PlayerState()
         self.spawner = WordSpawner()
+        self.boss_spawner = BossSpawner()
         self.powerup_spawner = PowerUpSpawner()
         self.particles = ParticleSystem()
         self.input_handler = InputHandler()
         self.audio = AudioManager()
         self.audio.init_sounds()
+        self.boss_effect = renderer.BossEffectManager()
 
         self.falling_words = []
         self.scores_data = load_scores()
@@ -48,9 +51,11 @@ class Game:
     def _reset_game(self):
         self.player.reset()
         self.spawner = WordSpawner()
+        self.boss_spawner = BossSpawner()
         self.powerup_spawner = PowerUpSpawner()
         self.particles = ParticleSystem()
         self.input_handler.reset()
+        self.boss_effect = renderer.BossEffectManager()
         self.falling_words = []
 
     def run(self):
@@ -123,13 +128,26 @@ class Game:
                     event, self.falling_words, self.player
                 )
                 if key_result:
-                    if isinstance(key_result, tuple) and key_result[0] == "destroyed":
-                        _, word = key_result
-                        self.particles.emit(word.x, int(word.y), word.color, 25)
-                        self.audio.play_destroy()
+                    if isinstance(key_result, tuple):
+                        tag = key_result[0]
+                        word = key_result[1]
+                        if tag == "destroyed_boss":
+                            reward = int(BOSS_BASE_SCORE * self.player.multiplier)
+                            self.player.score += reward
+                            self.player.words_destroyed += 1
+                            self.player.combo += 1
+                            if self.player.combo > self.player.max_combo:
+                                self.player.max_combo = self.player.combo
+                            self.particles.emit(word.x, int(word.y), word.color, 80)
+                            self.boss_effect.trigger_boss_down()
+                            self.boss_spawner.clear_active()
+                            self.audio.play_boss_kill()
+                        elif tag == "destroyed":
+                            self.particles.emit(word.x, int(word.y), word.color, 25)
+                            self.audio.play_destroy()
                     elif key_result == "hit":
                         self.audio.play_hit()
-                    elif key_result == "miss":
+                    elif key_result == "miss" or key_result == "miss_boss":
                         self.audio.play_miss()
 
             elif self.state_mgr.current == GameStateType.GAME_OVER:
@@ -153,8 +171,15 @@ class Game:
             word = self.spawner.generate_word(SCREEN_WIDTH)
             self.falling_words.append(word)
 
+        if self.boss_spawner.update(dt):
+            boss = self.boss_spawner.generate_boss(
+                SCREEN_WIDTH, self.spawner.difficulty_level
+            )
+            self.falling_words.append(boss)
+
         self.powerup_spawner.update(dt)
         self.particles.update(dt)
+        self.boss_effect.update(dt)
 
         for w in self.falling_words:
             w.update(dt, slow)
@@ -163,7 +188,12 @@ class Game:
         for w in self.falling_words:
             if w.alive:
                 if w.is_off_screen():
-                    self.player.lose_life()
+                    if w.is_boss:
+                        for _ in range(BOSS_MISS_LIVES):
+                            self.player.lose_life()
+                        self.boss_spawner.clear_active()
+                    else:
+                        self.player.lose_life()
                     self.particles.emit(w.x, int(w.y), (200, 60, 60), 12)
                     self.input_handler.reset()
                 else:
@@ -178,6 +208,8 @@ class Game:
             self.particles.emit(w.x, int(w.y), w.color, 15)
             self.player.score += 10
             self.player.words_destroyed += 1
+            if w.is_boss:
+                self.boss_spawner.clear_active()
         self.falling_words.clear()
         self.input_handler.reset()
         self.particles.emit_nuke(SCREEN_WIDTH, SCREEN_HEIGHT)
@@ -186,32 +218,44 @@ class Game:
     def _draw(self):
         self.screen.fill(DARK_BG)
 
+        shake_ox, shake_oy = self.boss_effect.get_shake_offset()
+        buf = self.screen
+        apply_shake = (shake_ox != 0 or shake_oy != 0)
+        if apply_shake:
+            buf = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+            buf.fill(DARK_BG)
+
         if self.state_mgr.current == GameStateType.MENU:
-            renderer.draw_menu(self.screen, self.fonts, self.state_mgr.menu_selected)
+            renderer.draw_menu(buf, self.fonts, self.state_mgr.menu_selected)
 
         elif self.state_mgr.current == GameStateType.SETTINGS:
             renderer.draw_settings(
-                self.screen, self.fonts,
+                buf, self.fonts,
                 self.audio.bgm_on, self.audio.sfx_on,
                 self.state_mgr.settings_selected,
             )
 
         elif self.state_mgr.current == GameStateType.LEADERBOARD:
-            renderer.draw_leaderboard(self.screen, self.fonts, self.scores_data)
+            renderer.draw_leaderboard(buf, self.fonts, self.scores_data)
 
         elif self.state_mgr.current == GameStateType.PLAYING:
             for w in self.falling_words:
-                w.draw(self.screen, self.fonts["word"])
-            self.powerup_spawner.draw(self.screen, self.fonts["small"])
-            self.particles.draw(self.screen)
-            renderer.draw_hud(self.screen, self.player, self.fonts, self.powerup_spawner)
-            renderer.draw_bottom_bar(self.screen, self.input_handler, self.fonts)
+                w.draw(buf, self.fonts["word"])
+            self.powerup_spawner.draw(buf, self.fonts["small"])
+            self.particles.draw(buf)
+            self.boss_effect.draw(buf, self.fonts)
+            renderer.draw_hud(buf, self.player, self.fonts, self.powerup_spawner)
+            renderer.draw_bottom_bar(buf, self.input_handler, self.fonts)
 
         elif self.state_mgr.current == GameStateType.GAME_OVER:
             for w in self.falling_words:
-                w.draw(self.screen, self.fonts["word"])
-            renderer.draw_hud(self.screen, self.player, self.fonts)
-            renderer.draw_game_over(self.screen, self.fonts, self.player)
+                w.draw(buf, self.fonts["word"])
+            renderer.draw_hud(buf, self.player, self.fonts)
+            self.boss_effect.draw(buf, self.fonts)
+            renderer.draw_game_over(buf, self.fonts, self.player)
+
+        if apply_shake:
+            self.screen.blit(buf, (shake_ox, shake_oy))
 
         pygame.display.flip()
 

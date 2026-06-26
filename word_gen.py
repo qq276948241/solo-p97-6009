@@ -22,6 +22,20 @@ WORD_POOL_HARD = [
 
 ALL_WORDS = WORD_POOL_EASY + WORD_POOL_MEDIUM + WORD_POOL_HARD
 
+BOSS_WORD_POOL = [
+    "congratulations", "extraordinary", "magnificent", "unprecedented",
+    "spectacular", "revolutionary", "extraordinarily", "magnificently",
+    "philosophical", "electromagnetic", "thermodynamics", "neuropsychology",
+    "photographically", "paleontologist", "circumstantial", "determination",
+    "sophistication", "thunderstorm", "strawberry", "butterflies",
+]
+
+BOSS_COLOR = (160, 60, 220)
+BOSS_SPAWN_INTERVAL = 60.0
+BOSS_SPEED_MULT = 0.6
+BOSS_BASE_SCORE = 200
+BOSS_MISS_LIVES = 2
+
 
 def pick_word(difficulty_level):
     if difficulty_level < 2:
@@ -84,3 +98,47 @@ class WordSpawner:
         speed = pick_speed(self.difficulty_level)
         x = random.randint(60, screen_width - 120)
         return FallingWord(word_text, x, color, speed)
+
+
+def pick_boss_word():
+    return random.choice(BOSS_WORD_POOL)
+
+
+def pick_boss_speed(difficulty_level):
+    if difficulty_level < 2:
+        base = 0.7
+    elif difficulty_level < 4:
+        base = 1.1
+    elif difficulty_level < 6:
+        base = 1.4
+    else:
+        base = 1.7
+    return base * BOSS_SPEED_MULT
+
+
+class BossSpawner:
+    def __init__(self):
+        self.timer = 0.0
+        self.interval = BOSS_SPAWN_INTERVAL
+        self.active_boss = None
+
+    def update(self, dt):
+        if self.active_boss is not None:
+            return False
+        self.timer += dt
+        if self.timer >= self.interval:
+            self.timer = 0.0
+            return True
+        return False
+
+    def generate_boss(self, screen_width, difficulty_level=0):
+        from falling_word import BossWord
+        word_text = pick_boss_word()
+        speed = pick_boss_speed(difficulty_level)
+        x = screen_width // 2
+        boss = BossWord(word_text, x, BOSS_COLOR, speed)
+        self.active_boss = boss
+        return boss
+
+    def clear_active(self):
+        self.active_boss = None

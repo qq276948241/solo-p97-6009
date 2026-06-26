@@ -1,5 +1,6 @@
 import pygame
 import math
+import random
 from config import (
     SCREEN_WIDTH, SCREEN_HEIGHT, FONT_NAME,
     FONT_SIZE_LARGE, FONT_SIZE_MEDIUM, FONT_SIZE_SMALL,
@@ -142,3 +143,59 @@ def draw_game_over(surface, fonts, player):
 
     hint1 = font_small.render("[R] Restart    [Q] Main Menu", True, GRAY)
     surface.blit(hint1, (SCREEN_WIDTH // 2 - hint1.get_width() // 2, 480))
+
+
+class BossEffectManager:
+    def __init__(self):
+        self.boss_down_timer = 0.0
+        self.boss_down_duration = 2.0
+        self.shake_timer = 0.0
+        self.shake_duration = 0.6
+        self.shake_intensity = 0.0
+
+    def trigger_boss_down(self):
+        self.boss_down_timer = self.boss_down_duration
+        self.shake_timer = self.shake_duration
+        self.shake_intensity = 12.0
+
+    def update(self, dt):
+        if self.boss_down_timer > 0:
+            self.boss_down_timer -= dt
+        if self.shake_timer > 0:
+            self.shake_timer -= dt
+
+    def get_shake_offset(self):
+        if self.shake_timer <= 0:
+            return (0, 0)
+        ratio = self.shake_timer / self.shake_duration
+        intensity = self.shake_intensity * ratio
+        ox = random.uniform(-intensity, intensity)
+        oy = random.uniform(-intensity, intensity)
+        return (int(ox), int(oy))
+
+    def draw(self, surface, fonts):
+        if self.boss_down_timer <= 0:
+            return
+        t = self.boss_down_timer
+        dur = self.boss_down_duration
+        ratio = t / dur
+
+        scale = 1.0 + 0.3 * math.sin(ratio * math.pi)
+        alpha = min(1.0, t / 0.3)
+        font_size = int(72 * scale)
+        font = pygame.font.Font(FONT_NAME, font_size)
+
+        color = (220, 80, 255)
+        surf = font.render("BOSS DOWN!", True, color)
+        shadow_surf = font.render("BOSS DOWN!", True, (40, 0, 60))
+
+        cx = SCREEN_WIDTH // 2
+        cy = SCREEN_HEIGHT // 2
+        x = cx - surf.get_width() // 2
+        y = cy - surf.get_height() // 2
+
+        alpha_surf = pygame.Surface(surf.get_size(), pygame.SRCALPHA)
+        alpha_surf.set_alpha(int(255 * alpha))
+        alpha_surf.blit(shadow_surf, (3, 3))
+        alpha_surf.blit(surf, (0, 0))
+        surface.blit(alpha_surf, (x, y))

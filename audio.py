@@ -91,6 +91,26 @@ def _generate_bgm():
     return sound
 
 
+def _generate_boss_sound(duration_ms=600, volume=0.3):
+    sample_rate = 44100
+    n_samples = int(sample_rate * duration_ms / 1000)
+    buf = bytearray(n_samples * 2)
+    for i in range(n_samples):
+        t = i / sample_rate
+        progress = i / n_samples
+        freq = 180 - 120 * progress
+        noise = random.uniform(-0.3, 0.3)
+        fade = 1.0 - progress
+        val = int(volume * 32767 * fade * (
+            0.7 * math.sin(2 * math.pi * freq * t) + noise
+        ))
+        val = max(-32767, min(32767, val))
+        buf[i * 2] = val & 0xFF
+        buf[i * 2 + 1] = (val >> 8) & 0xFF
+    sound = pygame.mixer.Sound(buffer=bytes(buf))
+    return sound
+
+
 class AudioManager:
     def __init__(self):
         self.bgm_on = True
@@ -100,6 +120,7 @@ class AudioManager:
         self._sfx_destroy = None
         self._sfx_miss = None
         self._sfx_powerup = None
+        self._sfx_boss = None
         self._bgm_channel = None
         self._initialized = False
 
@@ -112,6 +133,7 @@ class AudioManager:
             self._sfx_destroy = _generate_explosion_sound(250, 0.2)
             self._sfx_miss = _generate_miss_sound(100, 0.1)
             self._sfx_powerup = _generate_powerup_sound(180, 0.2)
+            self._sfx_boss = _generate_boss_sound(600, 0.25)
             self._initialized = True
         except Exception:
             self._initialized = False
@@ -148,6 +170,12 @@ class AudioManager:
             return
         if self._sfx_powerup:
             self._sfx_powerup.play()
+
+    def play_boss_kill(self):
+        if not self.sfx_on or not self._initialized:
+            return
+        if self._sfx_boss:
+            self._sfx_boss.play()
 
     def toggle_bgm(self):
         self.bgm_on = not self.bgm_on
