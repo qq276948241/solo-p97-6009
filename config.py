@@ -1,0 +1,48 @@
+import os
+import pygame
+
+SCREEN_WIDTH = 900
+SCREEN_HEIGHT = 700
+FPS = 60
+
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+DARK_BG = (18, 18, 30)
+RED = (230, 60, 60)
+YELLOW = (240, 200, 40)
+BLUE = (60, 140, 230)
+GRAY = (100, 100, 120)
+DARK_GRAY = (40, 40, 55)
+GREEN = (60, 210, 90)
+ORANGE = (240, 140, 40)
+PURPLE = (160, 80, 220)
+CYAN = (80, 220, 220)
+HEART_RED = (220, 40, 60)
+
+WORD_COLORS = [RED, YELLOW, BLUE]
+WORD_SPEEDS = {"easy": (0.6, 1.2), "medium": (1.0, 2.0), "hard": (1.5, 3.0)}
+
+INITIAL_LIVES = 3
+MAX_LIVES = 5
+BASE_SCORE = 10
+COMBO_MULTIPLIER_STEP = 0.5
+COMBO_THRESHOLD = 5
+
+WORD_SPAWN_INTERVAL_BASE = 1.8
+WORD_SPAWN_INTERVAL_MIN = 0.5
+DIFFICULTY_INCREASE_INTERVAL = 15
+
+POWERUP_SPAWN_INTERVAL = 20.0
+POWERUP_DURATION = {"slow": 5.0, "nuke": 0.1, "life": 0.0}
+
+FONT_NAME = None
+FONT_SIZE_LARGE = 64
+FONT_SIZE_MEDIUM = 36
+FONT_SIZE_SMALL = 24
+FONT_SIZE_WORD = 28
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SCORES_FILE = os.path.join(BASE_DIR, "scores.txt")
+ASSETS_DIR = os.path.join(BASE_DIR, "assets")
+
+os.makedirs(ASSETS_DIR, exist_ok=True)
