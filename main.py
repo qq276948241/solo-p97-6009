@@ -8,6 +8,7 @@ from config import (
 )
 from game_state import GameStateType, GameStateManager
 from word_gen import WordSpawner, BossSpawner, BOSS_BASE_SCORE, BOSS_MISS_LIVES
+from difficulty_manager import DifficultyManager
 from player import PlayerState
 from powerup import PowerUpSpawner, PowerUpType
 from particles import ParticleSystem
@@ -35,8 +36,9 @@ class Game:
 
         self.state_mgr = GameStateManager()
         self.player = PlayerState()
-        self.spawner = WordSpawner()
-        self.boss_spawner = BossSpawner()
+        self.difficulty = DifficultyManager()
+        self.spawner = WordSpawner(self.difficulty)
+        self.boss_spawner = BossSpawner(self.difficulty)
         self.powerup_spawner = PowerUpSpawner()
         self.particles = ParticleSystem()
         self.input_handler = InputHandler()
@@ -50,8 +52,9 @@ class Game:
 
     def _reset_game(self):
         self.player.reset()
-        self.spawner = WordSpawner()
-        self.boss_spawner = BossSpawner()
+        self.difficulty = DifficultyManager()
+        self.spawner = WordSpawner(self.difficulty)
+        self.boss_spawner = BossSpawner(self.difficulty)
         self.powerup_spawner = PowerUpSpawner()
         self.particles = ParticleSystem()
         self.input_handler.reset()
@@ -167,13 +170,15 @@ class Game:
 
         slow = self.powerup_spawner.slow_factor()
 
+        self.difficulty.update(dt)
+
         if self.spawner.update(dt):
             word = self.spawner.generate_word(SCREEN_WIDTH)
             self.falling_words.append(word)
 
         if self.boss_spawner.update(dt):
             boss = self.boss_spawner.generate_boss(
-                SCREEN_WIDTH, self.spawner.difficulty_level
+                SCREEN_WIDTH, self.difficulty.level
             )
             self.falling_words.append(boss)
 

@@ -37,16 +37,15 @@ BOSS_BASE_SCORE = 200
 BOSS_MISS_LIVES = 2
 
 
-def pick_word(difficulty_level):
-    if difficulty_level < 2:
-        pool = WORD_POOL_EASY
-    elif difficulty_level < 4:
-        pool = random.choice([WORD_POOL_EASY, WORD_POOL_MEDIUM])
-    elif difficulty_level < 6:
-        pool = random.choice([WORD_POOL_MEDIUM, WORD_POOL_HARD])
+def pick_word(pool_key):
+    if pool_key == "easy":
+        return random.choice(WORD_POOL_EASY)
+    elif pool_key == "medium_easy":
+        return random.choice(random.choice([WORD_POOL_EASY, WORD_POOL_MEDIUM]))
+    elif pool_key == "hard_medium":
+        return random.choice(random.choice([WORD_POOL_MEDIUM, WORD_POOL_HARD]))
     else:
-        pool = WORD_POOL_HARD
-    return random.choice(pool)
+        return random.choice(WORD_POOL_HARD)
 
 
 def pick_color():
@@ -54,73 +53,56 @@ def pick_color():
     return random.choice(WORD_COLORS)
 
 
-def pick_speed(difficulty_level):
-    from config import WORD_SPEEDS
-    if difficulty_level < 2:
-        rng = WORD_SPEEDS["easy"]
-    elif difficulty_level < 4:
-        rng = WORD_SPEEDS["medium"]
-    elif difficulty_level < 6:
-        lo = WORD_SPEEDS["medium"][0]
-        hi = WORD_SPEEDS["hard"][1]
-        rng = (lo, hi)
-    else:
-        rng = WORD_SPEEDS["hard"]
-    return random.uniform(rng[0], rng[1])
+def pick_boss_word():
+    return random.choice(BOSS_WORD_POOL)
 
 
 class WordSpawner:
-    def __init__(self):
+    def __init__(self, difficulty_manager=None):
         self.timer = 0.0
-        self.interval = 1.8
-        self.difficulty_level = 0
-        self.diff_timer = 0.0
-        self.active_words = []
+        self.difficulty_manager = difficulty_manager
+        self.difficulty_level = getattr(difficulty_manager, "level", 0)
+
+    def bind(self, difficulty_manager):
+        self.difficulty_manager = difficulty_manager
+        self.difficulty_level = difficulty_manager.level
 
     def update(self, dt):
+        if self.difficulty_manager is None:
+            return False
+        self.difficulty_level = self.difficulty_manager.level
         self.timer += dt
-        self.diff_timer += dt
-
-        if self.diff_timer >= 15.0:
-            self.diff_timer = 0.0
-            self.difficulty_level += 1
-            self.interval = max(0.5, self.interval - 0.15)
-
-        if self.timer >= self.interval:
+        interval = self.difficulty_manager.word_spawn_interval()
+        if self.timer >= interval:
             self.timer = 0.0
             return True
         return False
 
     def generate_word(self, screen_width):
         from falling_word import FallingWord
-        word_text = pick_word(self.difficulty_level)
+        pool_key = (
+            self.difficulty_manager.word_pool_key()
+            if self.difficulty_manager else "easy"
+        )
+        word_text = pick_word(pool_key)
         color = pick_color()
-        speed = pick_speed(self.difficulty_level)
+        speed = (
+            self.difficulty_manager.pick_word_speed()
+            if self.difficulty_manager else 1.0
+        )
         x = random.randint(60, screen_width - 120)
         return FallingWord(word_text, x, color, speed)
 
 
-def pick_boss_word():
-    return random.choice(BOSS_WORD_POOL)
-
-
-def pick_boss_speed(difficulty_level):
-    if difficulty_level < 2:
-        base = 0.7
-    elif difficulty_level < 4:
-        base = 1.1
-    elif difficulty_level < 6:
-        base = 1.4
-    else:
-        base = 1.7
-    return base * BOSS_SPEED_MULT
-
-
 class BossSpawner:
-    def __init__(self):
+    def __init__(self, difficulty_manager=None):
         self.timer = 0.0
         self.interval = BOSS_SPAWN_INTERVAL
         self.active_boss = None
+        self.difficulty_manager = difficulty_manager
+
+    def bind(self, difficulty_manager):
+        self.difficulty_manager = difficulty_manager
 
     def update(self, dt):
         if self.active_boss is not None:
@@ -131,10 +113,17 @@ class BossSpawner:
             return True
         return False
 
-    def generate_boss(self, screen_width, difficulty_level=0):
+    def generate_boss(self, screen_width, difficulty_level=None):
         from falling_word import BossWord
+        if difficulty_level is None and self.difficulty_manager:
+            difficulty_level = self.difficulty_manager.level
+        if difficulty_level is None:
+            difficulty_level = 0
+        speed = (
+            self.difficulty_manager.pick_boss_speed()
+            if self.difficulty_manager else 0.5
+        )
         word_text = pick_boss_word()
-        speed = pick_boss_speed(difficulty_level)
         x = screen_width // 2
         boss = BossWord(word_text, x, BOSS_COLOR, speed)
         self.active_boss = boss
